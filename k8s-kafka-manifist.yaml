@@ -1,0 +1,154 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: zookeeper-dep
+  name: zookeeper-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: zookeeper-pod
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: zookeeper-pod
+    spec:
+      containers:
+        - image: wurstmeister/zookeeper
+          name: zookeeper-container
+          ports:
+            - containerPort: 2181
+          resources:
+            limits:
+              memory: 400Mi
+              cpu: 125m
+            requests:
+              cpu: 70m
+              memory: 200Mi
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: zookeeper-svc
+  name: zookeeper-svc
+spec:
+  ports:
+    - port: 2181
+      protocol: TCP
+      targetPort: 2181
+  selector:
+    app: zookeeper-pod
+  type: ClusterIP
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: kafka-dep
+  name: kafka-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-pod
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: kafka-pod
+    spec:
+      containers:
+        - image: wurstmeister/kafka
+          name: kafka-container
+          ports:
+            - containerPort: 9092
+          env:
+            - name:  KAFKA_ZOOKEEPER_CONNECT
+              value: zookeeper-svc:2181
+            - name:  KAFKA_ADVERTISED_HOST_NAME
+              value: kafka-svc
+            - name:  KAFKA_CREATE_TOPICS
+              value: "R1"
+          resources:
+            limits:
+              memory: 400Mi
+              cpu: 125m
+            requests:
+              cpu: 70m
+              memory: 200Mi
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: kafka-svc
+  name: kafka-svc
+spec:
+  ports:
+    - port: 9092
+      protocol: TCP
+      targetPort: 9092
+  selector:
+    app: kafka-pod
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: producer-consumer-dep
+  name: producer-consumer-dep
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: producer-consumer-pod
+  strategy: {}
+  template:
+    metadata:
+      labels:
+        app: producer-consumer-pod
+    spec:
+      containers:
+        - image: soulaimandockerhub/kafka-producer-consumer:v1
+          name: producer-consumer-container
+          ports:
+            - containerPort: 8080
+          env:
+            - name: BOOTSRAP_KAFKA_SERVER
+              value: "kafka-svc"
+            - name: BOOTSRAP_KAFKA_PORT
+              value: "9092"
+            - name: SERVER_PORT
+              value: "8080"
+
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: producer-consumer-svc
+  name: producer-consumer-svc
+spec:
+  ports:
+    - port: 8080
+      protocol: TCP
+      targetPort: 8080
+      nodePort: 30010
+  selector:
+    app: producer-consumer-pod
+  type: NodePort
+
+---
